@@ -1,15 +1,16 @@
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 # Page configuration
 st.set_page_config(
-    page_title="Stock Price Simulator (https://ac420example.streamlit.app/)",
-    page_icon="📈",
+    page_title="Example Streamlit Visualizations (Python Code) ",
+    page_icon=" ",
     layout="wide",
 )
 
-st.title("📈 Stock Price Simulator (https://ac420example.streamlit.app/)")
+st.title("Dashboard with Example Visualizations")
 
 # Create the 4 requested tabs
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -23,79 +24,36 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # TAB 1: SIMULATED STOCK PRICE DEMO
 # ==========================================
 with tab1:
-    st.header("Geometric Brownian Motion (GBM) Stock Simulator")
-    st.markdown(
-        "Adjust the market parameters below to simulate a hypothetical stock's "
-        "price path over one trading year (252 trading days)."
-    )
+    st.header("Geometric Brownian Motion (GBM) Stock Simulator") 
+ 
 
-    # Sidebar or column controls for simulation parameters
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        ticker = st.text_input("Simulated Ticker", value="ACME")
-        s0 = st.number_input("Initial Stock Price ($)", min_value=1.0, value=100.0, step=5.0)
-    with col2:
-        mu = st.slider(
-            "Expected Annual Return (Drift, μ)",
-            min_value=-0.50,
-            max_value=0.50,
-            value=0.08,
-            step=0.01,
-            format="%.2f",
-        )
-    with col3:
-        sigma = st.slider(
-            "Annual Volatility (σ)",
-            min_value=0.05,
-            max_value=1.00,
-            value=0.20,
-            step=0.01,
-            format="%.2f",
-        )
-    with col4:
-        seed = st.number_input("Random Seed", min_value=0, value=42, step=1)
-        num_paths = st.slider("Number of Simulated Paths", min_value=1, max_value=10, value=1)
+ 
+ 
+@st.cache_data
+def load_customers():
+    rng = np.random.default_rng(3)
+    n = 300
+    return pd.DataFrame({
+        "customer": [f"Customer {i:03d}" for i in range(n)],
+        "plan": rng.choice(["Basic", "Pro", "Team"], n),
+        "monthly_revenue": rng.gamma(2.0, 150.0, n).round(),
+        "active_users": rng.integers(1, 120, n),
+    })
+ 
+ 
+customers = load_customers()
+ 
+st.title("Customers")
+st.caption("Drag a box or lasso over the points to list those customers.")
+fig = px.scatter(customers, x="active_users", y="monthly_revenue", hover_name="customer")
+event = st.plotly_chart(fig, on_select="rerun", selection_mode=("box", "lasso"))
+ 
+rows = event.selection.point_indices
+if rows:
+    st.dataframe(customers.iloc[rows], hide_index=True)
+else:
+    st.info("Nothing selected yet.")
 
-    # Simulation parameters (252 trading days in 1 year)
-    T = 1.0
-    N = 252
-    dt = T / N
-
-    # Run Geometric Brownian Motion simulation
-    rng = np.random.default_rng(int(seed))
-    # Generate standard normal random variables: shape (N, num_paths)
-    z = rng.standard_normal((N, num_paths))
-
-    # Calculate daily returns using exact GBM solution
-    drift = (mu - 0.5 * sigma**2) * dt
-    diffusion = sigma * np.sqrt(dt) * z
-    daily_log_returns = drift + diffusion
-
-    # Prepend 0 for Day 0 (initial price) and compute cumulative price paths
-    log_paths = np.vstack([np.zeros((1, num_paths)), np.cumsum(daily_log_returns, axis=0)])
-    price_paths = s0 * np.exp(log_paths)
-
-    # Format into a DataFrame for plotting
-    columns = [f"{ticker} Path {i+1}" for i in range(num_paths)]
-    df_prices = pd.DataFrame(price_paths, columns=columns)
-    df_prices.index.name = "Trading Day"
-
-    # Display key summary metrics for the primary path
-    final_price = price_paths[-1, 0]
-    pct_change = ((final_price - s0) / s0) * 100
-    max_price = np.max(price_paths[:, 0])
-    min_price = np.min(price_paths[:, 0])
-
-    m1, m2, m3 = st.columns(3)
-    m1.metric(f"{ticker} Ending Price (Path 1)", f"${final_price:,.2f}", f"{pct_change:+.2f}%")
-    m2.metric("52-Week Simulated High (Path 1)", f"${max_price:,.2f}")
-    m3.metric("52-Week Simulated Low (Path 1)", f"${min_price:,.2f}")
-
-    # Plot the simulated prices
-    st.line_chart(df_prices, y_label="Stock Price ($)", x_label="Trading Day")
-
-    with st.expander("View Raw Simulated Data"):
-        st.dataframe(df_prices.style.format("${:.2f}"), use_container_width=True)
 
 
 # ==================================================================================
